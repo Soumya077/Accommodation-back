@@ -22,7 +22,7 @@ app.use(cookieParser());
 app.use('/uploads' , express.static(__dirname+'/uploads'));
 app.use(cors({
     credentials : true ,
-    origin : 'https://accommodation-ten.vercel.app',
+    origin : process.env.FRONTEND_URL,
 }))
 
 // origin : 'http://localhost:5173',
@@ -72,11 +72,13 @@ app.post('/api/login' , async (req,res) => {
                 id : userDoc._id , 
             }, jwtSecret , {} , (err,token) =>{
                 if(err) throw err ;
-                res.cookie('token', token, {
-                    httpOnly: true, // Helps mitigate XSS
-                    secure: process.env.NODE_ENV === 'production', // Only use HTTPS in production
-                    sameSite: 'None', // Required for cross-origin cookies
-                }).json(userDoc);
+                res.cookie('token', token, 
+                //     {
+                //     httpOnly: true, // Helps mitigate XSS
+                //     secure: process.env.NODE_ENV === 'production', // Only use HTTPS in production
+                //     sameSite: 'None', // Required for cross-origin cookies
+                // }
+            ).json(userDoc);
             });
             
         }else{
