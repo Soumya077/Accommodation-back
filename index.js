@@ -31,7 +31,7 @@ mongoose.connect(process.env.MONGO_URL);
 console.log(process.env.MONGO_URL);
 console.log(process.env.JWT_SECRET);
 
-app.get('/api/test' , (req,res) => {
+app.get('/test' , (req,res) => {
     res.json('test ok');
 });
 
