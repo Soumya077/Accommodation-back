@@ -21,7 +21,7 @@ const jwtSecret = process.env.JWT_SECRET;
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
-app.use('/uploads' , express.static(__dirname+'/uploads'));
+app.use('/api/uploads' , express.static(__dirname+'/uploads'));
 app.use(cors({
     credentials : true ,
     origin : ['http://localhost:5173', process.env.FRONTEND_URL],
