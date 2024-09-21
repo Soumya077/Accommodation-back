@@ -42,13 +42,15 @@ app.get('/api/test' , (req,res) => {
 });
 
 function getUserDataFromReq(req) {
-    return new Promise((resolve , reject) => {
-        jwt.verify(req.cookies.token,jwtSecret,{}, async (err,userData)=>{
-            if(err) throw err ;
+    return new Promise((resolve, reject) => {
+        const token = req.cookies.token; // Ensure this exists
+        if (!token) return reject(new Error('Token not provided'));
+
+        jwt.verify(token, jwtSecret, {}, (err, userData) => {
+            if (err) return reject(err);
             resolve(userData);
-        }); 
+        });
     });
-    
 }
 
 app.post('/api/register', async (req,res) =>{
@@ -62,7 +64,7 @@ app.post('/api/register', async (req,res) =>{
     
         res.json(userDoc);
     } catch (error) {
-        res.status(422).json(error)
+        res.status(422).json({ error: 'Registration failed', details: error })
     }
     
 })
@@ -78,20 +80,19 @@ app.post('/api/login' , async (req,res) => {
                 id : userDoc._id , 
             }, jwtSecret , {} , (err,token) =>{
                 if(err) throw err ;
-                res.cookie('token', token, 
-                //     {
-                //     httpOnly: true, // Helps mitigate XSS
-                //     secure: process.env.NODE_ENV === 'production', // Only use HTTPS in production
-                //     sameSite: 'None', // Required for cross-origin cookies
-                // }
+                res.cookie('token', token, {
+                    httpOnly: true, // Helps mitigate XSS
+                    secure: process.env.NODE_ENV === 'production', // Only use HTTPS in production
+                    sameSite: 'None', // Required for cross-origin cookies
+                }
             ).json(userDoc);
             });
             
         }else{
-            res.status(422).json('pass not ok');
+            res.status(422).json('Incorrect password');
         }
     }else{
-        res.json('not found');
+        res.status(404).json('User not found');
     }
 })
 
@@ -100,7 +101,7 @@ app.get('/api/profile' , (req,res) =>{
     if(token){
         jwt.verify(token,jwtSecret,{}, async (err,userData)=>{
             if(err){
-                throw err ;
+                return res.status(401).json({ message: 'Unauthorized', details: err });
             }
             const {name,email,_id} = await User.findById(userData.id)
             res.json({name,email,_id});
@@ -154,65 +155,85 @@ app.post('/api/upload',photosMiddleware.array('photos',100) , (req,res) => {
     }
 });
 
-app.post('/api/places' , (req,res) => {
-    const {token} = req.cookies;
-    const {title,address,addedPhotos,
-        description,perks,extraInfo,
-        checkIn,checkOut,maxGuests,price} = req.body ;
-    jwt.verify(token,jwtSecret,{}, async (err,userData)=>{
-        if(err) throw err ;
-        
-        await Place.create({
-            owner : userData.id ,
-            title,address,photos:addedPhotos,
-            description,perks,extraInfo,
-            checkIn,checkOut,maxGuests,price
-        });
+app.post('/api/places', async (req, res) => {
+    // const { token } = req.cookies;
+    const { title, address, addedPhotos, description, perks, extraInfo, checkIn, checkOut, maxGuests, price } = req.body;
 
-        res.status(201).json({ message: 'Test response' });;
-    }) 
+    try {
+        const userData = await getUserDataFromReq(req);
+        await Place.create({
+            owner: userData.id,
+            title,
+            address,
+            photos: addedPhotos,
+            description,
+            perks,
+            extraInfo,
+            checkIn,
+            checkOut,
+            maxGuests,
+            price
+        });
+        res.status(201).json({ message: 'Place created successfully' });
+    } catch (err) {
+        res.status(500).json({ message: 'Failed to create place', details: err });
+    }
 });
 
-app.get('/api/user-places' , (req,res) => {
-    const {token} = req.cookies;
-    if(token){
-
-        jwt.verify(token,jwtSecret,{}, async (err,userData)=>{
-            if(err) throw err ;
-            
-            const {id} = userData ;
-            res.json(await Place.find({owner:id}) )
-        }); 
-    }else{
+app.get('/api/user-places', async (req, res) => {
+    const { token } = req.cookies;
+    if (token) {
+        try {
+            const userData = await getUserDataFromReq(req);
+            const places = await Place.find({ owner: userData.id });
+            res.json(places);
+        } catch (err) {
+            res.status(500).json({ message: 'Error fetching user places', details: err });
+        }
+    } else {
         res.json(null);
     }
 });
 
+
 app.get('/api/places/:id', async (req,res) => {
     const {id} = req.params ;
-    res.json(await Place.findById(id))
+    const place = await Place.findById(id);
+    if (place) {
+        res.json(place);
+    } else {
+        res.status(404).json({ message: 'Place not found' });
+    }
 });
 
 app.put('/api/places',async (req,res) => {
-    const {token} = req.cookies;
-    const {id,title,address,addedPhotos,
-        description,perks,extraInfo,
-        checkIn,checkOut,maxGuests,price} = req.body ;
+    // const { token } = req.cookies;
+    const { id, title, address, addedPhotos, description, perks, extraInfo, checkIn, checkOut, maxGuests, price } = req.body;
 
-    jwt.verify(token,jwtSecret,{}, async (err,userData)=>{
-        if(err) throw err ;
+    try {
+        const userData = await getUserDataFromReq(req);
         const placeDoc = await Place.findById(id);
-        if(userData.id === placeDoc.owner.toString()){
+        if (userData.id === placeDoc.owner.toString()) {
             placeDoc.set({
-                title,address,photos:addedPhotos,
-                description,perks,extraInfo,
-                checkIn,checkOut,maxGuests,price
-            })
+                title,
+                address,
+                photos: addedPhotos,
+                description,
+                perks,
+                extraInfo,
+                checkIn,
+                checkOut,
+                maxGuests,
+                price
+            });
             await placeDoc.save();
-            res.json('ok');
+            res.json('Place updated successfully');
+        } else {
+            res.status(403).json({ message: 'Unauthorized' });
         }
-    
-    }); 
+    } catch (err) {
+        res.status(500).json({ message: 'Error updating place', details: err });
+    }
 });
 
 app.get('/api/places',async (req,res)=> {
@@ -220,23 +241,35 @@ app.get('/api/places',async (req,res)=> {
 });
 
 app.post('/api/booking' , async (req,res) => {
-    const userData = await getUserDataFromReq(req);
-    const {place,checkIn,checkOut,numberOfGuests,name,phone,price} = req.body ;
-    Booking.create({
-        place,checkIn,checkOut,numberOfGuests,name,phone,price,
-        user:userData.id,
-    }).then((doc) => {
-        res.json(doc);
-    }).catch(err => {
-        throw err ;
-    });
+    try {
+        const userData = await getUserDataFromReq(req);
+        const { place, checkIn, checkOut, numberOfGuests, name, phone, price } = req.body;
+        const booking = await Booking.create({
+            place,
+            checkIn,
+            checkOut,
+            numberOfGuests,
+            name,
+            phone,
+            price,
+            user: userData.id,
+        });
+        res.json(booking);
+    } catch (err) {
+        res.status(500).json({ message: 'Booking failed', details: err });
+    }
 });
 
 
 
 app.get('/api/bookings' , async (req,res) => {
-    const userData = await getUserDataFromReq(req);
-    res.json( await Booking.find({user:userData.id}).populate('place'));
+    try {
+        const userData = await getUserDataFromReq(req);
+        const bookings = await Booking.find({ user: userData.id }).populate('place');
+        res.json(bookings);
+    } catch (err) {
+        res.status(500).json({ message: 'Error fetching bookings', details: err });
+    }
 });
 
 app.listen(port, () => {
