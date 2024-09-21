@@ -12,6 +12,8 @@ const multer = require('multer');
 const fs = require('fs');
 require('dotenv').config()
 
+const port = process.env.PORT || 3000;
+
 
 const bcryptSalt = bcrypt.genSaltSync(10);
 const jwtSecret = process.env.JWT_SECRET;
@@ -22,7 +24,7 @@ app.use(cookieParser());
 app.use('/uploads' , express.static(__dirname+'/uploads'));
 app.use(cors({
     credentials : true ,
-    origin : process.env.FRONTEND_URL,
+    origin : ['http://localhost:5173', process.env.FRONTEND_URL],
 }))
 
 // origin : 'http://localhost:5173',
@@ -233,4 +235,6 @@ app.get('/api/bookings' , async (req,res) => {
     res.json( await Booking.find({user:userData.id}).populate('place'));
 });
 
-// app.listen(3000);  
+app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+});
